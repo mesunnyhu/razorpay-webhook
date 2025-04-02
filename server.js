@@ -7,7 +7,7 @@ const app = express();
 // Define constants
 const GOOGLE_SHEETS_WEBHOOK_URL =
   "https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec";
-  
+
 const RAZORPAY_SECRET = process.env.RAZORPAY_SECRET; // Replace with actual secret from Razorpay
 const OWNER_SHARE = 0.7;
 const PARTNER_SHARE = 0.3;
@@ -17,9 +17,10 @@ app.post(
   "/razorpay-webhook",
   express.raw({ type: "application/json" }),
   async (req, res) => {
+    let response; // ✅ Declare response at the start
+
     try {
       // Signature verification
-      console.log(response.data);
       const signature = req.headers["x-razorpay-signature"];
       const expectedSignature = crypto
         .createHmac("sha256", RAZORPAY_SECRET)
@@ -47,7 +48,7 @@ app.post(
       const partnerAmount = amount * PARTNER_SHARE;
 
       // Send data to Google Sheets
-      const response = await axios.post(GOOGLE_SHEETS_WEBHOOK_URL, {
+      response = await axios.post(GOOGLE_SHEETS_WEBHOOK_URL, {
         paymentId,
         amount,
         ownerAmount,
@@ -63,6 +64,12 @@ app.post(
       res.json({ success: true });
     } catch (error) {
       console.error("❌ Error processing webhook:", error);
+
+      // ✅ Ensure response is always initialized before logging it
+      if (response) {
+        console.error("Google Sheets response error:", response.data);
+      }
+
       res
         .status(500)
         .json({ success: false, message: "Webhook processing failed" });
