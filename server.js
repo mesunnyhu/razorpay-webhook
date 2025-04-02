@@ -7,7 +7,7 @@ const app = express();
 // Define constants
 const GOOGLE_SHEETS_WEBHOOK_URL =
   "https://script.google.com/macros/s/AKfycbwEzjv3lCeftipOrzUctsJuQupp_ExT5BnKnKnubIyyenNcZoXHRyTelcUsl5pFqmQgVf/exec";
-const RAZORPAY_SECRET = "siddhi"; // Replace with actual secret from Razorpay
+const RAZORPAY_SECRET = process.env.RAZORPAY_SECRET; // Replace with actual secret from Razorpay
 const OWNER_SHARE = 0.7;
 const PARTNER_SHARE = 0.3;
 
