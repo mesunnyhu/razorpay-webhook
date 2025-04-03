@@ -51,17 +51,23 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     // ✅ Transfer Funds using `transfers.create()`
     try {
       const transferResponse = await razorpay.transfers.create({
-        account: "acc_QDSdM9vlYhgxHF", // Fund account for Owner
-        amount: ownerAmount,
+        account: "acc_QDSdM9vlYhgxHF",
+        amount: Math.round(ownerAmount * 100), // Convert to paise
         currency: "INR",
-        notes: { reason: "Owner Share" },
+        payment_id: paymentId,
+        notes: {
+          description: "Owner payment split",
+        },
       });
 
-      const partnerTransfer = await razorpay.transfers.create({
-        account: "acc_QEUufydnazxuLm", // Fund account for Partner
-        amount: partnerAmount,
+      const transferResponse2 = await razorpay.transfers.create({
+        account: "acc_QEUufydnazxuLm",
+        amount: Math.round(partnerAmount * 100),
         currency: "INR",
-        notes: { reason: "Partner Share" },
+        payment_id: paymentId,
+        notes: {
+          description: "Partner payment split",
+        },
       });
 
       console.log("✅ Payment Split Successfully:", transferResponse, partnerTransfer);
