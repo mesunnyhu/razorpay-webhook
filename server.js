@@ -6,27 +6,28 @@ require("dotenv").config();
 
 const app = express();
 
-// ✅ Initialize Razorpay Instance (Fixes "razorpay is not defined")
+// ✅ Initialize Razorpay Instance
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ✅ Webhook route FIRST, using express.raw() to get raw request body
+// ✅ Webhook Route (Use express.raw() before JSON middleware)
 app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (req, res) => {
   try {
     console.log("🔹 Received Webhook Headers:", req.headers);
 
     // ✅ Read raw request body
-    const rawBody = req.body; 
+    const rawBody = req.body;
+    req.body = rawBody.toString(); // Convert buffer to string for signature verification
 
-    console.log("🔹 Received Webhook Body:", rawBody.toString());
+    console.log("🔹 Received Webhook Body:", req.body);
 
     // ✅ Verify Razorpay Signature
     const signature = req.headers["x-razorpay-signature"];
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET)
-      .update(rawBody)
+      .update(rawBody, "utf-8") // Use raw buffer for verification
       .digest("hex");
 
     if (signature !== expectedSignature) {
@@ -35,7 +36,7 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     }
 
     // ✅ Parse Payment Data AFTER verification
-    const payload = JSON.parse(rawBody.toString());
+    const payload = JSON.parse(req.body);
     if (payload.event !== "payment.captured") {
       return res.json({ success: false, message: "Event not handled" });
     }
@@ -44,41 +45,47 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     const amount = payment.amount / 100; // Convert to INR
     const paymentId = payment.id;
     const email = payment.email;
-    const ownerAmount = amount * 0.7;
-    const partnerAmount = amount * 0.3;
+    const ownerAmount = Math.round(amount * 0.7 * 100); // Convert to paise
+    const partnerAmount = Math.round(amount * 0.3 * 100); // Convert to paise
 
-    // ✅ Transfer Funds (Fixed API Call)
-    const transferResponse = await razorpay.payments.transfer(paymentId, {
-      transfers: [
-        {
-          account: "acc_QDSdM9vlYhgxHF",
-          amount: Math.round(ownerAmount * 100), // Convert to paise
-          currency: "INR",
-          on_hold: false,
-        },
-        {
-          account: "acc_QEUufydnazxuLm",
-          amount: Math.round(partnerAmount * 100), // Convert to paise
-          currency: "INR",
-          on_hold: false,
-        },
-      ],
-    });
+    // ✅ Transfer Funds
+    try {
+      const transferResponse = await razorpay.payments.createTransfer(paymentId, {
+        transfers: [
+          {
+            account: "acc_QDSdM9vlYhgxHF",
+            amount: ownerAmount,
+            currency: "INR",
+            on_hold: false,
+          },
+          {
+            account: "acc_QEUufydnazxuLm",
+            amount: partnerAmount,
+            currency: "INR",
+            on_hold: false,
+          },
+        ],
+      });
 
-    console.log("✅ Payment Split Successfully:", transferResponse);
+      console.log("✅ Payment Split Successfully:", transferResponse);
+    } catch (transferError) {
+      console.error("❌ Transfer Error:", transferError.response?.data || transferError.message);
+      return res.status(500).json({ success: false, message: "Transfer failed" });
+    }
 
     // ✅ Send Data to Google Sheets
     await axios.post("https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec", {
       paymentId,
       amount,
-      ownerAmount,
-      partnerAmount,
+      ownerAmount: ownerAmount / 100, // Convert back to INR
+      partnerAmount: partnerAmount / 100, // Convert back to INR
       email,
       status: "Transferred",
     });
 
-    console.log(`✅ Payment Split: ${ownerAmount} (Owner) | ${partnerAmount} (Partner)`);
+    console.log(`✅ Payment Split: ${ownerAmount / 100} INR (Owner) | ${partnerAmount / 100} INR (Partner)`);
     res.json({ success: true, message: "Payment successfully split" });
+
   } catch (error) {
     console.error("❌ Error processing webhook:", error.response?.data || error.message);
     res.status(500).json({ success: false, message: "Webhook processing failed" });
