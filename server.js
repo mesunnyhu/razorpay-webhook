@@ -6,84 +6,76 @@ require("dotenv").config();
 
 const app = express();
 
-// ✅ Initialize Razorpay Instance
+// ✅ Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ✅ Webhook Route (Use express.raw() before JSON middleware)
+// ✅ Webhook Route
 app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (req, res) => {
   try {
     console.log("🔹 Received Webhook Headers:", req.headers);
 
-    // ✅ Read raw request body
+    // ✅ Use raw body for verification
     const rawBody = req.body;
-    req.body = rawBody.toString(); // Convert buffer to string for signature verification
-
-    console.log("🔹 Received Webhook Body:", req.body);
-
-    // ✅ Verify Razorpay Signature
     const signature = req.headers["x-razorpay-signature"];
+
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET)
-      .update(rawBody, "utf-8") // Use raw buffer for verification
+      .update(rawBody)
       .digest("hex");
 
     if (signature !== expectedSignature) {
-      console.error("❌ Invalid signature");
+      console.error("❌ Invalid Signature");
       return res.status(400).json({ success: false, message: "Invalid signature" });
     }
 
-    // ✅ Parse Payment Data AFTER verification
-    const payload = JSON.parse(req.body);
+    // ✅ Parse the raw body AFTER verification
+    const payload = JSON.parse(rawBody);
+    console.log("🔹 Verified Webhook Payload:", payload);
+
     if (payload.event !== "payment.captured") {
       return res.json({ success: false, message: "Event not handled" });
     }
 
     const payment = payload.payload.payment.entity;
-    const amount = payment.amount / 100; // Convert to INR
+    const amount = payment.amount; // Already in paise
     const paymentId = payment.id;
     const email = payment.email;
-    const ownerAmount = Math.round(amount * 0.7 * 100); // Convert to paise
-    const partnerAmount = Math.round(amount * 0.3 * 100); // Convert to paise
+    const ownerAmount = Math.round(amount * 0.7); // Already in paise
+    const partnerAmount = Math.round(amount * 0.3); // Already in paise
 
     // ✅ Transfer Funds using `transfers.create()`
     try {
-      const transferOwner = await razorpay.transfers.create({
-        account: "acc_QDSdM9vlYhgxHF",
-        amount: Math.round(ownerAmount * 100), // Convert to paise
-        currency: "INR",
-        payment_id: paymentId,
-        notes: {
-          description: "Owner payment split",
-        },
+      const transferResponse = await razorpay.transfers.create({
+        source: paymentId, // ✅ Correct Parameter
+        transfers: [
+          {
+            account: "acc_QDSdM9vlYhgxHF",
+            amount: ownerAmount,
+            currency: "INR",
+            notes: { description: "Owner payment split" },
+          },
+          {
+            account: "acc_QEUufydnazxuLm",
+            amount: partnerAmount,
+            currency: "INR",
+            notes: { description: "Partner payment split" },
+          },
+        ],
       });
 
-      const transferPartner = await razorpay.transfers.create({
-        account: "acc_QEUufydnazxuLm",
-        amount: Math.round(partnerAmount * 100),
-        currency: "INR",
-        payment_id: paymentId,
-        notes: {
-          description: "Partner payment split",
-        },
-      });
-
-      console.log("✅ Payment Split Successfully:", transferOwner, transferPartner);
+      console.log("✅ Payment Split Successfully:", transferResponse);
 
     } catch (transferError) {
-      if (transferError.response) {
-        console.error("❌ Transfer API Error:", JSON.stringify(transferError.response.data, null, 2));
-      } else {
-        console.error("❌ Transfer Error:", transferError.message);
-      }
+      console.error("❌ Transfer API Error:", transferError.response?.data || transferError.message);
     }
 
     // ✅ Send Data to Google Sheets
     await axios.post("https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec", {
       paymentId,
-      amount,
+      amount: amount / 100, // Convert back to INR
       ownerAmount: ownerAmount / 100, // Convert back to INR
       partnerAmount: partnerAmount / 100, // Convert back to INR
       email,
@@ -99,7 +91,7 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
   }
 });
 
-// ✅ Regular JSON Parsing Middleware (AFTER webhook route)
+// ✅ Regular JSON Parsing Middleware
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
