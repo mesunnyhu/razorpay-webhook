@@ -66,8 +66,11 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
 
       console.log("✅ Payment Split Successfully:", transferResponse, partnerTransfer);
     } catch (transferError) {
-      console.error("❌ Transfer Error:", transferError.response?.data || transferError.message);
-      return res.status(500).json({ success: false, message: "Transfer failed" });
+      if (transferError.response) {
+        console.error("❌ Transfer API Error:", JSON.stringify(transferError.response.data, null, 2));
+      } else {
+        console.error("❌ Transfer Error:", transferError.message);
+      }
     }
 
     // ✅ Send Data to Google Sheets
