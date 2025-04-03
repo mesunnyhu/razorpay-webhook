@@ -48,26 +48,23 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     const ownerAmount = Math.round(amount * 0.7 * 100); // Convert to paise
     const partnerAmount = Math.round(amount * 0.3 * 100); // Convert to paise
 
-    // ✅ Transfer Funds
+    // ✅ Transfer Funds using `transfers.create()`
     try {
-      const transferResponse = await razorpay.payments.createTransfer(paymentId, {
-        transfers: [
-          {
-            account: "acc_QDSdM9vlYhgxHF",
-            amount: ownerAmount,
-            currency: "INR",
-            on_hold: false,
-          },
-          {
-            account: "acc_QEUufydnazxuLm",
-            amount: partnerAmount,
-            currency: "INR",
-            on_hold: false,
-          },
-        ],
+      const transferResponse = await razorpay.transfers.create({
+        account: "acc_QDSdM9vlYhgxHF", // Fund account for Owner
+        amount: ownerAmount,
+        currency: "INR",
+        notes: { reason: "Owner Share" },
       });
 
-      console.log("✅ Payment Split Successfully:", transferResponse);
+      const partnerTransfer = await razorpay.transfers.create({
+        account: "acc_QEUufydnazxuLm", // Fund account for Partner
+        amount: partnerAmount,
+        currency: "INR",
+        notes: { reason: "Partner Share" },
+      });
+
+      console.log("✅ Payment Split Successfully:", transferResponse, partnerTransfer);
     } catch (transferError) {
       console.error("❌ Transfer Error:", transferError.response?.data || transferError.message);
       return res.status(500).json({ success: false, message: "Transfer failed" });
