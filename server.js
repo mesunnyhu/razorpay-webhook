@@ -6,6 +6,12 @@ require("dotenv").config();
 
 const app = express();
 
+// ✅ Initialize Razorpay Instance (Fixes "razorpay is not defined")
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
+
 // ✅ Webhook route FIRST, using express.raw() to get raw request body
 app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (req, res) => {
   try {
@@ -19,8 +25,8 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     // ✅ Verify Razorpay Signature
     const signature = req.headers["x-razorpay-signature"];
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET) // ✅ Correct secret
-      .update(rawBody) // ✅ Use raw body
+      .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET)
+      .update(rawBody)
       .digest("hex");
 
     if (signature !== expectedSignature) {
@@ -35,24 +41,24 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
     }
 
     const payment = payload.payload.payment.entity;
-    const amount = payment.amount / 100;
+    const amount = payment.amount / 100; // Convert to INR
     const paymentId = payment.id;
     const email = payment.email;
     const ownerAmount = amount * 0.7;
     const partnerAmount = amount * 0.3;
 
-    // ✅ Transfer Funds
-    const transferResponse = await razorpay.payments.createTransfer(paymentId, {
+    // ✅ Transfer Funds (Fixed API Call)
+    const transferResponse = await razorpay.payments.transfer(paymentId, {
       transfers: [
         {
           account: "acc_QDSdM9vlYhgxHF",
-          amount: ownerAmount * 100,
+          amount: Math.round(ownerAmount * 100), // Convert to paise
           currency: "INR",
           on_hold: false,
         },
         {
           account: "acc_QEUufydnazxuLm",
-          amount: partnerAmount * 100,
+          amount: Math.round(partnerAmount * 100), // Convert to paise
           currency: "INR",
           on_hold: false,
         },
