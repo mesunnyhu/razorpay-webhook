@@ -52,13 +52,13 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
         source: paymentId, // ✅ Correct Parameter
         transfers: [
           {
-            account: "acc_QDSdM9vlYhgxHF",
+            account: "acc_QEUufydnazxuLm",
             amount: ownerAmount,
             currency: "INR",
             notes: { description: "Owner payment split" },
           },
           {
-            account: "acc_QEUufydnazxuLm",
+            account: "acc_QDSdM9vlYhgxHF",
             amount: partnerAmount,
             currency: "INR",
             notes: { description: "Partner payment split" },
