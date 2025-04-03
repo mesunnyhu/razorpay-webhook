@@ -54,29 +54,25 @@ app.post(
       const ownerAmount = amount * OWNER_SHARE;
       const partnerAmount = amount * PARTNER_SHARE;
 
-      // ✅ Step 3: Create an Order & Transfer Funds (Required for Razorpay Route)
-      const order = await razorpay.orders.create({
-        amount: amount * 100, // Convert to paise
-        currency: "INR",
-        receipt: `order_rcpt_${paymentId}`,
-        payment_capture: 1,
+      // ✅ Step 3: Transfer Funds from the Captured Payment (Correct API Call)
+      const transferResponse = await razorpay.payments.transfer(paymentId, {
         transfers: [
           {
             account: OWNER_ACCOUNT_ID,
-            amount: ownerAmount * 100,
+            amount: ownerAmount * 100, // Convert to paise
             currency: "INR",
             on_hold: false,
           },
           {
             account: PARTNER_ACCOUNT_ID,
-            amount: partnerAmount * 100,
+            amount: partnerAmount * 100, // Convert to paise
             currency: "INR",
             on_hold: false,
           },
         ],
       });
 
-      console.log("✅ Order & Transfers Created:", order);
+      console.log("✅ Payment Split Successfully:", transferResponse);
 
       // ✅ Step 4: Send Data to Google Sheets
       await axios.post(GOOGLE_SHEETS_WEBHOOK_URL, {
