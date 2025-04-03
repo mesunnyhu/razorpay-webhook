@@ -50,7 +50,7 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
 
     // ✅ Transfer Funds using `transfers.create()`
     try {
-      const transferResponse = await razorpay.transfers.create({
+      const transferOwner = await razorpay.transfers.create({
         account: "acc_QDSdM9vlYhgxHF",
         amount: Math.round(ownerAmount * 100), // Convert to paise
         currency: "INR",
@@ -60,7 +60,7 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
         },
       });
 
-      const transferResponse2 = await razorpay.transfers.create({
+      const transferPartner = await razorpay.transfers.create({
         account: "acc_QEUufydnazxuLm",
         amount: Math.round(partnerAmount * 100),
         currency: "INR",
@@ -70,7 +70,8 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
         },
       });
 
-      console.log("✅ Payment Split Successfully:", transferResponse, partnerTransfer);
+      console.log("✅ Payment Split Successfully:", transferOwner, transferPartner);
+
     } catch (transferError) {
       if (transferError.response) {
         console.error("❌ Transfer API Error:", JSON.stringify(transferError.response.data, null, 2));
