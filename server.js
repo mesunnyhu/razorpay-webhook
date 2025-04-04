@@ -2,7 +2,6 @@ const express = require("express");
 const axios = require("axios");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
-const Airtable = require("airtable");
 require("dotenv").config();
 
 const app = express();
@@ -13,12 +12,11 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ✅ Initialize Airtable
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base("appDTyPnVoyd32gVY");
-
 // ✅ Webhook Route
 app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (req, res) => {
   try {
+    console.log("🔹 Received Webhook Headers:", req.headers);
+
     const rawBody = req.body;
     const signature = req.headers["x-razorpay-signature"];
 
@@ -35,6 +33,8 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
 
     // ✅ Parse JSON after verification
     const payload = JSON.parse(rawBody);
+    console.log("🔹 Verified Webhook Payload:", payload);
+
     if (payload.event !== "payment.captured") {
       return res.json({ success: false, message: "Event not handled" });
     }
@@ -67,33 +67,35 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
 
       console.log("✅ Payment Split Successfully:", transferResponse);
 
-      // ✅ Log to Airtable
-      await base("Payments").create({
-        "Payment ID": paymentId,
-        "Total Amount": amount / 100,
-        "Owner Amount": ownerAmount / 100,
-        "Partner Amount": partnerAmount / 100,
-        "Email": email,
-        "Status": "Transferred",
+      // ✅ Log to Google Sheets
+      await axios.post("https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec", {
+        paymentId,
+        amount: amount / 100,
+        ownerAmount: ownerAmount / 100,
+        partnerAmount: partnerAmount / 100,
+        email,
+        status: "Transferred",
       });
 
+      console.log(`✅ Payment Split: ${ownerAmount / 100} INR (Owner) | ${partnerAmount / 100} INR (Partner)`);
       res.json({ success: true, message: "Payment successfully split" });
 
     } catch (transferError) {
       console.error("❌ Transfer API Error:", transferError.response?.data || transferError.message);
 
-      // ✅ Log Failure to Airtable
-      await base("Payments").create({
-        "Payment ID": paymentId,
-        "Total Amount": amount / 100,
-        "Owner Amount": ownerAmount / 100,
-        "Partner Amount": partnerAmount / 100,
-        "Email": email,
-        "Status": "Transfer Failed",
+      // ✅ Still log to Google Sheets for tracking
+      await axios.post("https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec", {
+        paymentId,
+        amount: amount / 100,
+        ownerAmount: ownerAmount / 100,
+        partnerAmount: partnerAmount / 100,
+        email,
+        status: "Transfer Failed",
       });
 
       res.status(500).json({ success: false, message: "Transfer failed" });
     }
+
   } catch (error) {
     console.error("❌ Error processing webhook:", error.response?.data || error.message);
     res.status(500).json({ success: false, message: "Webhook processing failed" });
