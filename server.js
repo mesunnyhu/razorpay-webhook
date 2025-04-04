@@ -68,7 +68,7 @@ app.post("/razorpay-webhook", express.raw({ type: "application/json" }), async (
       console.log("✅ Payment Split Successfully:", transferResponse);
 
       // ✅ Log to Google Sheets
-      await axios.post("https://script.google.com/macros/s/AKfycbyWm-PYO8gPlSOlZ5iag6hIRfSHgc-UsOUlRXRB1UR0F4ZFdOF6-ebx7_ewvpvyb2Z3/exec", {
+      await axios.post("https://script.google.com/macros/s/AKfycbyzAETGyXRLyULmX0QWMihjYmW0bKmsYdAcWzrCvO2ad0abW4DOCeGyWK0Uw2wUqyEp/exec", {
         paymentId,
         amount: amount / 100,
         ownerAmount: ownerAmount / 100,
