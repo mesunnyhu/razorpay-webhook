@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "airtable": "^0.12.2",
     "axios": "^1.4.0",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
